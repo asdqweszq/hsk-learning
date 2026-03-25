@@ -1,0 +1,14 @@
+{
+  "/(auth)/login/page": "app/(auth)/login/page.js",
+  "/api/vocabulary/route": "app/api/vocabulary/route.js",
+  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js",
+  "/api/training/submit/route": "app/api/training/submit/route.js",
+  "/api/training/questions/route": "app/api/training/questions/route.js",
+  "/(app)/settings/page": "app/(app)/settings/page.js",
+  "/(app)/vocabulary/page": "app/(app)/vocabulary/page.js",
+  "/(app)/vocabulary/study/page": "app/(app)/vocabulary/study/page.js",
+  "/(app)/training/listening/page": "app/(app)/training/listening/page.js",
+  "/(app)/grammar/page": "app/(app)/grammar/page.js",
+  "/(app)/training/listening/session/page": "app/(app)/training/listening/session/page.js",
+  "/(app)/grammar/[pointId]/page": "app/(app)/grammar/[pointId]/page.js"
+}

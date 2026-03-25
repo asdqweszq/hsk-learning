@@ -1,0 +1,266 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth & User ─────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  settings     UserSettings?
+  goals        UserGoals?
+  wordProgress UserWordProgress[]
+  dailyStats   DailyStats[]
+  errorRecords ErrorRecord[]
+  examRecords  ExamRecord[]
+  favorites    UserFavoriteWord[]
+}
+
+model UserSettings {
+  id              String  @id @default(cuid())
+  userId          String  @unique
+  theme           String  @default("system")
+  uiLanguage      String  @default("zh")
+  audioSpeed      Float   @default(1.0)
+  showPinyin      Boolean @default(true)
+  showTranslation Boolean @default(true)
+  autoPlay        Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserGoals {
+  id                 String    @id @default(cuid())
+  userId             String    @unique
+  dailyWordsTarget   Int       @default(10)
+  dailyMinutesTarget Int       @default(20)
+  targetHskLevel     Int       @default(3)
+  currentStreak      Int       @default(0)
+  longestStreak      Int       @default(0)
+  totalXp            Int       @default(0)
+  lastStudyDate      DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Vocabulary ──────────────────────────────────────────────────────────────
+
+model VocabularyWord {
+  id                 String  @id @default(cuid())
+  hanzi              String
+  pinyin             String
+  pinyinNormalized   String
+  hskLevel           Int
+  partOfSpeech       String
+  definitionEn       String
+  definitionZh       String?
+  exampleSentence    String?
+  examplePinyin      String?
+  exampleTranslation String?
+  audioPath          String?
+  strokeCount        Int?
+  frequency          Int     @default(0)
+
+  userProgress UserWordProgress[]
+  favorites    UserFavoriteWord[]
+  errorRecords ErrorRecord[]      @relation("VocabError")
+
+  @@unique([hanzi, hskLevel])
+  @@index([hskLevel])
+  @@index([pinyinNormalized])
+}
+
+model UserWordProgress {
+  id             String    @id @default(cuid())
+  userId         String
+  wordId         String
+  status         String    @default("new")
+  correctCount   Int       @default(0)
+  incorrectCount Int       @default(0)
+  easeFactor     Float     @default(2.5)
+  interval       Int       @default(1)
+  repetitions    Int       @default(0)
+  dueDate        DateTime  @default(now())
+  lastReviewedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  word VocabularyWord @relation(fields: [wordId], references: [id])
+
+  @@unique([userId, wordId])
+  @@index([userId, dueDate])
+  @@index([userId, status])
+}
+
+model UserFavoriteWord {
+  userId    String
+  wordId    String
+  createdAt DateTime @default(now())
+
+  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  word VocabularyWord @relation(fields: [wordId], references: [id])
+
+  @@id([userId, wordId])
+}
+
+// ─── Grammar ─────────────────────────────────────────────────────────────────
+
+model GrammarPoint {
+  id          String @id @default(cuid())
+  hskLevel    Int
+  title       String
+  titleZh     String?
+  pattern     String
+  explanation String
+  difficulty  Int    @default(1)
+
+  examples     GrammarExample[]
+  errorRecords ErrorRecord[]    @relation("GrammarError")
+
+  @@index([hskLevel])
+}
+
+model GrammarExample {
+  id             String  @id @default(cuid())
+  grammarPointId String
+  sentence       String
+  pinyin         String
+  translation    String
+  notes          String?
+  isExercise     Boolean @default(false)
+  blankPosition  Int?
+  blankOptions   String?
+
+  grammarPoint GrammarPoint @relation(fields: [grammarPointId], references: [id], onDelete: Cascade)
+}
+
+// ─── Questions ────────────────────────────────────────────────────────────────
+
+model Question {
+  id            String   @id @default(cuid())
+  type          String
+  hskLevel      Int
+  content       String
+  correctAnswer String
+  explanation   String?
+  audioPath     String?
+  difficulty    Int      @default(3)
+  createdAt     DateTime @default(now())
+
+  examAnswers  ExamAnswer[]
+  errorRecords ErrorRecord[] @relation("QuestionError")
+
+  @@index([type, hskLevel])
+}
+
+// ─── Exam ─────────────────────────────────────────────────────────────────────
+
+model ExamTemplate {
+  id           String @id @default(cuid())
+  hskLevel     Int
+  name         String
+  description  String?
+  durationMins Int
+  totalScore   Int    @default(300)
+  passScore    Int    @default(180)
+  structure    String
+
+  examRecords ExamRecord[]
+}
+
+model ExamRecord {
+  id             String    @id @default(cuid())
+  userId         String
+  templateId     String
+  status         String    @default("in_progress")
+  startedAt      DateTime  @default(now())
+  submittedAt    DateTime?
+  totalScore     Int?
+  listeningScore Int?
+  readingScore   Int?
+  writingScore   Int?
+  passed         Boolean?
+  timeSpentSecs  Int?
+  questionIds    String
+
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template ExamTemplate @relation(fields: [templateId], references: [id])
+  answers  ExamAnswer[]
+
+  @@index([userId, status])
+}
+
+model ExamAnswer {
+  id           String   @id @default(cuid())
+  examRecordId String
+  questionId   String
+  userAnswer   String   @default("")
+  isCorrect    Boolean?
+  score        Int?
+  answeredAt   DateTime @default(now())
+
+  examRecord ExamRecord @relation(fields: [examRecordId], references: [id], onDelete: Cascade)
+  question   Question   @relation(fields: [questionId], references: [id])
+
+  @@unique([examRecordId, questionId])
+}
+
+// ─── Error Book ───────────────────────────────────────────────────────────────
+
+model ErrorRecord {
+  id             String    @id @default(cuid())
+  userId         String
+  sourceType     String
+  wordId         String?
+  grammarPointId String?
+  questionId     String?
+  errorNote      String?
+  reviewCount    Int       @default(0)
+  easeFactor     Float     @default(2.5)
+  interval       Int       @default(1)
+  repetitions    Int       @default(0)
+  nextReviewAt   DateTime  @default(now())
+  mastered       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  word         VocabularyWord? @relation("VocabError", fields: [wordId], references: [id])
+  grammarPoint GrammarPoint?   @relation("GrammarError", fields: [grammarPointId], references: [id])
+  question     Question?       @relation("QuestionError", fields: [questionId], references: [id])
+
+  @@index([userId, nextReviewAt, mastered])
+}
+
+// ─── Daily Stats ──────────────────────────────────────────────────────────────
+
+model DailyStats {
+  id                String   @id @default(cuid())
+  userId            String
+  date              DateTime
+  wordsStudied      Int      @default(0)
+  wordsLearned      Int      @default(0)
+  minutesStudied    Int      @default(0)
+  xpEarned          Int      @default(0)
+  questionsAnswered Int      @default(0)
+  correctAnswers    Int      @default(0)
+  listeningMins     Int      @default(0)
+  readingMins       Int      @default(0)
+  writingMins       Int      @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
